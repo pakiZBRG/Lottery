@@ -115,6 +115,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         (bool upkeepNeeded, ) = checkUpkeep("");
         if (!upkeepNeeded) revert Lottery__UpkeepNotNeeded();
 
+        s_lotteryState = LotteryState.CLOSED;
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_gasLane,
             i_subscriptionId,
@@ -185,8 +186,11 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         return i_interval;
     }
 
+    function getDuration() public view returns (uint256) {
+        return s_time;
+    }
+
     function getRemainingTime() public view returns (uint256) {
-        require(s_unlockTime > 0, "Please enter the lottery");
         if (s_unlockTime > block.timestamp)
             return s_unlockTime - block.timestamp;
         return 0;

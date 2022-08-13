@@ -6,6 +6,7 @@
 
 ## Scripts
 - Enter the lottery
+`npm run enter`
 
 ## Template for building Hardhat projects in Solidity
 - Run the tests

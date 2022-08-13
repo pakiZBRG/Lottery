@@ -6,15 +6,17 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
   ? describe.skip
   : describe("Lottery", async () => {
     const chainId = network.config.chainId;
-    let lottery, vrfCoordinator, deployer, value, interval;
+    let lottery, vrfCoordinator, deployer, entranceFee, interval, time, addTime;
 
     beforeEach(async () => {
       deployer = (await getNamedAccounts()).deployer;
       await deployments.fixture(["all"]);
       lottery = await ethers.getContract("Lottery", deployer);
-      value = await lottery.getEntranceFee();
+      entranceFee = await lottery.getEntranceFee();
       interval = (await lottery.getInterval()).toString()
+      time = (await lottery.getDuration()).toString()
       vrfCoordinator = await ethers.getContract("VRFCoordinatorV2Mock", deployer)
+      addTime = time - +interval
     });
 
     describe("constructor", () => {
@@ -22,6 +24,7 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         const lotteryState = await lottery.getLotteryState();
         assert.equal(lotteryState, 0)
         assert.equal(interval, networkConfig[chainId]["interval"]);
+        assert.equal(time, networkConfig[chainId]["time"]);
       })
     })
 
@@ -30,31 +33,38 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         await (expect(lottery.enterLottery())).to.be.revertedWith("Lottery__NotEnoughETH")
       })
 
-      it("reverts if lottery is not open", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+      it("reverts if countdown has not ended", async () => {
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         await lottery.performUpkeep([])
-        await expect(lottery.enterLottery({ value })).to.be.revertedWith("Lottery__NotOpen")
+        await expect(lottery.enterLottery({ value: entranceFee })).to.be.revertedWith("Lottery__NotOpen");
       })
 
       it("adds player when player joins", async () => {
-        await lottery.enterLottery({ value });
+        await lottery.enterLottery({ value: entranceFee });
         const players = await lottery.getPlayers();
         assert.equal(players.length, 1)
+      })
+
+      it("sets timer when player joins", async () => {
+        await lottery.enterLottery({ value: entranceFee });
+        const time = await lottery.getRemainingTime();
+        expect(+time.toString()).to.equal(networkConfig[chainId]["time"])
       })
     })
 
     describe("checkUpkeep", () => {
       it("reverts when no ETH is sent", async () => {
-        await network.provider.send("evm_increaseTime", [+interval + 1])
+        await network.provider.send("evm_increaseTime", [+interval + addTime])
         await network.provider.send("evm_mine", []);
         const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([])
         expect(upkeepNeeded).to.be.false;
       })
+
       it("reverts if lottery is closed", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         await lottery.performUpkeep([]);
         const lotteryState = await lottery.getLotteryState();
@@ -63,16 +73,18 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         expect(upkeepNeeded).to.be.false;
         assert.equal(lotteryState, 1)
       })
+
       it("reverts if not enough time has passed", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval - 1]);
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
         expect(upkeepNeeded).to.be.false;
       })
+
       it("fulfills if there is ETH, enough time has passed and is open", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime + 1]);
         await network.provider.send("evm_mine", []);
         const { upkeepNeeded } = await lottery.callStatic.checkUpkeep([]);
         expect(upkeepNeeded).to.be.true;
@@ -83,16 +95,18 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
       it("reverts if upkeep is not needed", async () => {
         await expect(lottery.performUpkeep([])).to.be.revertedWith("Lottery__UpkeepNotNeeded")
       })
+
       it("runs if checkUpkeep is true", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         const tx = await lottery.performUpkeep([]);
         assert(tx)
       })
+
       it("selects a random number and closes the lottery", async () => {
-        await lottery.enterLottery({ value });
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+        await lottery.enterLottery({ value: entranceFee });
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         const tx = await lottery.performUpkeep([]);
         const txReceipt = await tx.wait(1)
@@ -109,9 +123,9 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         const accounts = await ethers.getSigners();
         for (let i = 0; i < additionalEntrances; i++) {
           const connectAccount = await lottery.connect(accounts[i]);
-          await connectAccount.enterLottery({ value });
+          await connectAccount.enterLottery({ value: entranceFee });
         }
-        await network.provider.send("evm_increaseTime", [+interval + 1]);
+        await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);
         const startTimestamp = await lottery.getTimeStamp();
 
@@ -137,7 +151,7 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
               assert.equal(
                 winnerEndingBalance.toString(),
                 winnerStartingBalance.add(
-                  value.mul(additionalEntrances)
+                  entranceFee.mul(additionalEntrances)
                 ).toString()
               );
               resolve();
