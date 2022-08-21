@@ -6,8 +6,8 @@ const ABI_PATH = path.join(__dirname, '../client/src/contract/ABI.json')
 const CONTRACT_ADDRESS_PATH = path.join(__dirname, '../client/src/contract/contractAddress.json')
 
 module.exports = async () => {
-    console.log("Writing ABI and contract address to frontend...")
     await updateContractAddress();
+    console.log("Writing ABI and contract address to frontend...")
     await updateABI();
     console.log("ABI and contract address are saved in frontend!")
 }

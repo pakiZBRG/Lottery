@@ -6,9 +6,10 @@ const main = async () => {
   const randomPlayer = accounts[randomIndex];
 
   const lottery = await ethers.getContract("Lottery");
-  const entranceFee = await lottery.getEntranceFee();
+  const ticketPrice = await lottery.getTicketPrice();
   try {
-    const tx = await lottery.connect(randomPlayer).enterLottery({ value: entranceFee });
+    const value = utils.parseEther(+ticketPrice * 3)
+    const tx = await lottery.connect(randomPlayer).enterLottery(3, { value });
     await tx.wait(1);
   } catch (error) {
     console.log(error.message)
@@ -16,6 +17,7 @@ const main = async () => {
 
   const checkData = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(""))
   const { upkeepNeeded } = await lottery.callStatic.checkUpkeep(checkData)
+  console.log(upkeepNeeded)
   if (upkeepNeeded) {
     const tx = await lottery.performUpkeep(checkData)
     const txReceipt = await tx.wait(1)
@@ -31,14 +33,18 @@ const main = async () => {
   } else {
     const players = await lottery.getPlayers();
     const uniquePlayers = [...new Set(players)]
-    const balance = await lottery.totalBalance();
+    const amount = await lottery.getTicketAmount();
+    const balance = await lottery.getTotalBalance();
     const ethBalance = ethers.utils.formatEther(balance.toString())
-    const countdown = (await lottery.getRemainingTime()).toString()
-    const timeLeft = getRemainingTime(countdown * 1000)
+    const startedAt = (await lottery.getStartingTime()).toString()
+    const duration = (await lottery.getDuration()).toString()
+    const timeLeft = getRemainingTime(duration * 1000 - (Date.now() - startedAt * 1000))
 
     console.log(`Players (${uniquePlayers.length}): `, uniquePlayers)
-    console.log(`Balance: ${ethBalance}Ξ`)
-    console.log(`Finishes in ${timeLeft}`)
+    console.log(`Tickets: ${amount.toString()} (${ethBalance})`)
+    console.log(`Started at: ${new Date(startedAt * 1000).toLocaleString()}`)
+    console.log(`Finishes at: ${new Date(duration * 1000 + startedAt * 1000).toLocaleString()}`)
+    console.log(`Countdown: ${timeLeft}`)
   }
 }
 

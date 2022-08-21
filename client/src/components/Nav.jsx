@@ -4,7 +4,11 @@ import { shortenAddress } from '../utils'
 const Nav = ({ account, metamaskMessage, connectWallet }) => {
     const { address, balance } = account
     return (
-        <nav className='flex flex-row-reverse'>
+        <nav className='h-20 flex items-center justify-between'>
+            <div className='flex items-center'>
+                <img src='/eth-colored.png' className='h-8 mx-4' />
+                <h1 className='text-xl  text-slate-100'>Lottery</h1>
+            </div>
             {address
                 ?
                 <p className='text-sm mr-5 text-slate-200 border-[1px] border-slate-500 px-5 py-2 rounded-full'>

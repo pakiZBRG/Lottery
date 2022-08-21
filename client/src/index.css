@@ -25,14 +25,11 @@ input[type=number] {
 
 ::-webkit-scrollbar {
   width: 5px;
-  background: #222;
-}
-
-::-webkit-scrollbar-track {
-  border-radius: 10px;
+  height: 5px;
+  background: #111;
 }
 
 ::-webkit-scrollbar-thumb {
-  border-radius: 10px;
+  border-radius: 2px;
   background: rgba(255,255,255,0.3); 
 }
