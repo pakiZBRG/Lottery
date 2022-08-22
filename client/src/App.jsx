@@ -12,6 +12,8 @@ const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
 
 const App = () => {
+  const [numTickets, setNumTickets] = useState(1)
+  const [tickets, setTickets] = useState(0)
   const [addressOfContract, setAddressOfContract] = useState('');
   const [status, setStatus] = useState('')
   const [price, setPrice] = useState(0);
@@ -133,7 +135,7 @@ const App = () => {
     try {
       const contract = await getContract(provider);
       const tickets = (await contract.getTicketAmount()).toString();
-      console.log(tickets)
+      setTickets(tickets)
     } catch (error) {
       console.log(error.message)
     }
@@ -153,9 +155,13 @@ const App = () => {
   const enterLottery = async () => {
     try {
       const contract = await getContract(signer);
-      const amountInWei = ethers.utils.parseUnits(ticketPrice, 18)
+      if (numTickets < 1 || numTickets > 10) {
+        toast.info("You can send from 1 up to 10 ticket")
+        return 0;
+      }
+      const amountInWei = ethers.utils.parseUnits(`${+ticketPrice * numTickets}`, 18)
 
-      const tx = await contract.enterLottery({ value: amountInWei });
+      const tx = await contract.enterLottery(numTickets, { value: amountInWei });
       await tx.wait(1);
 
       const balance = await signer.getBalance();
@@ -163,6 +169,7 @@ const App = () => {
       setAccount({ ...account, balance: numEth })
 
       getBalance();
+      getTicketAmount();
       getFunders();
       getTime();
       toast.info("Transaction completed")
@@ -247,7 +254,7 @@ const App = () => {
       />
       <div className='py-12'>
         {chainMessage && <p>{chainMessage}</p>}
-        <p>Balance: {balance}Ξ</p>
+        <p>{tickets} 🎫 ({balance}Ξ)</p>
         <div>Funders: {funders?.map((funder, i) => <p key={i}>{funder}</p>)}</div>
         <div>
           {startedAt ?
@@ -273,7 +280,12 @@ const App = () => {
         </div>
         <div>Status: {status}</div>
         <div>🎫 = {ticketPrice}Ξ</div>
-        {account.address && <button onClick={enterLottery}>enter</button>}
+        {account.address &&
+          <>
+            <input type='number' style={{ color: 'black' }} min={1} max={10} defaultValue={1} onChange={e => setNumTickets(e.target.value)} />
+            <button onClick={enterLottery}>enter</button>
+          </>
+        }
       </div>
       <div className='flex justify-between'>
         <div className='flex'>

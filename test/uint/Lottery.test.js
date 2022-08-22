@@ -67,10 +67,16 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         await expect(lottery.enterLottery(tickets, { value: ticketPrice })).to.be.revertedWith("Lottery__NotOpen");
       })
 
-      it("adds player when player joins", async () => {
-        await lottery.enterLottery(tickets, { value: parseWei(tickets) });
+      it("adds player once with one ticket", async () => {
+        await lottery.enterLottery(1, { value: parseWei(1) });
         const players = await lottery.getPlayers();
         assert.equal(players.length, 1)
+      })
+
+      it("adds player six times with six tickets", async () => {
+        await lottery.enterLottery(6, { value: parseWei(6) });
+        const players = await lottery.getPlayers();
+        assert.equal(players.length, 6)
       })
 
       it("sets timer when player joins", async () => {
@@ -144,7 +150,7 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
         const accounts = await ethers.getSigners();
         for (let i = 0; i < mockPlayers; i++) {
           const connectAccount = await lottery.connect(accounts[i]);
-          await connectAccount.enterLottery(3, { value: parseWei(3) });
+          await connectAccount.enterLottery(1, { value: parseWei(1) });
         }
         await network.provider.send("evm_increaseTime", [+interval + addTime]);
         await network.provider.send("evm_mine", []);

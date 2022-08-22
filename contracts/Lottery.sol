@@ -76,8 +76,13 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         if (msg.value < amount * TICKET_PRICE) revert Lottery__NotEnoughETH();
         if (amount < 1) revert Lottery__NoTickets();
         if (amount > 10) revert Lottery__MaxTicketBound();
+        for (uint256 i = 0; i < amount; ) {
+            s_players.push(payable(msg.sender));
+            unchecked {
+                i++;
+            }
+        }
         s_ticketAmount += amount;
-        s_players.push(payable(msg.sender));
         emit Lottery__Enter(msg.sender);
     }
 
