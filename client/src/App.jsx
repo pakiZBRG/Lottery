@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Nav } from './components'
+import { Nav, Loader } from './components'
 import { ethers } from 'ethers';
 import { abi, contractAddress } from './contract';
 import { BsCodeSlash } from 'react-icons/bs'
+import { FaEthereum } from 'react-icons/fa'
 import { formatBigNumber } from './utils';
 import { ToastContainer, toast } from 'react-toastify';
 import Countdown from 'react-countdown';
@@ -12,10 +13,11 @@ const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
 
 const App = () => {
+  const [pickingWinner, setPickingWinner] = useState(false);
+  const [loading, setLoading] = useState(false)
   const [numTickets, setNumTickets] = useState(1)
   const [tickets, setTickets] = useState(0)
   const [addressOfContract, setAddressOfContract] = useState('');
-  const [status, setStatus] = useState('')
   const [price, setPrice] = useState(0);
   const [ticketPrice, getTicketPrice] = useState(0);
   const [winner, setWinner] = useState({ address: '', reward: '' });
@@ -116,14 +118,8 @@ const App = () => {
   const getTime = async () => {
     try {
       const contract = await getContract(provider);
-      const now = Date.now();
       const startedAt = (await contract.getStartingTime()).toString();
       const duration = (await contract.getDuration()).toString();
-      if (now < (startedAt + duration) * 1000) {
-        setStatus("WAITING")
-      } else {
-        setStatus("OPEN")
-      }
       setStartedAt(startedAt * 1000)
       setDuration(duration * 1000)
     } catch (error) {
@@ -156,13 +152,16 @@ const App = () => {
     try {
       const contract = await getContract(signer);
       if (numTickets < 1 || numTickets > 10) {
-        toast.info("You can send from 1 up to 10 ticket")
+        toast.info("You can send from 1 to 10 ticket")
         return 0;
       }
+      setLoading(true);
       const amountInWei = ethers.utils.parseUnits(`${+ticketPrice * numTickets}`, 18)
 
       const tx = await contract.enterLottery(numTickets, { value: amountInWei });
+      toast.info("Transaction is being mined. Please wait...")
       await tx.wait(1);
+      setLoading(false);
 
       const balance = await signer.getBalance();
       const numEth = formatBigNumber(balance, 3)
@@ -172,8 +171,10 @@ const App = () => {
       getTicketAmount();
       getFunders();
       getTime();
-      toast.info("Transaction completed")
+      setNumTickets(1);
+      toast.success("Transaction completed")
     } catch (error) {
+      setLoading(false)
       if (error.message.includes("Lottery__NotEnoughETH")) {
         toast.error("Not enough ETH sent!")
       }
@@ -202,13 +203,16 @@ const App = () => {
         }
       } else {
         await new Promise(async (resolve, reject) => {
-          setStatus("CALCULATING")
+          setPickingWinner(true)
           contract.once("WinnerPicked", async () => {
             try {
               getWinner();
-              setStatus('WAITING')
               setBalance(0);
+              getTicketAmount();
               setFunders([]);
+              setNumTickets(1);
+              setPickingWinner(false)
+              connectWallet();
               resolve();
             } catch (e) {
               reject(e);
@@ -244,59 +248,113 @@ const App = () => {
     }
   }
 
-  return (
-    <div className='p-4 min-h-screen bg-black text-white flex flex-col'>
-      <ToastContainer position='bottom-right' theme='dark' />
-      <Nav
-        connectWallet={connectWallet}
-        account={account}
-        metamaskMessage={metamaskMessage}
-      />
-      <div className='py-12'>
-        {chainMessage && <p>{chainMessage}</p>}
-        <p>{tickets} 🎫 ({balance}Ξ)</p>
-        <div>Funders: {funders?.map((funder, i) => <p key={i}>{funder}</p>)}</div>
-        <div>
-          {startedAt ?
-            <div>
-              <p>Started at: {new Date(startedAt).toString().substring(4, 21)}</p>
-              <p>{Date.now() > startedAt ? 'Finished' : "FInishes at"}: {new Date(startedAt + duration).toString().substring(4, 21)}</p>
-            </div>
-            :
-            <div>
-              <p>Waiting...</p>
-            </div>
-          }
-        </div>
-        {winner.address && <p>Latest winner: {winner.address} {winner.reward}</p>}
-        <div>Remaining time:
-          {startedAt && duration &&
-            <Countdown
-              date={startedAt + duration}
-              daysInHours={true}
-              onComplete={finishLottery}
-            />
-          }
-        </div>
-        <div>Status: {status}</div>
-        <div>🎫 = {ticketPrice}Ξ</div>
-        {account.address &&
-          <>
-            <input type='number' style={{ color: 'black' }} min={1} max={10} defaultValue={1} onChange={e => setNumTickets(e.target.value)} />
-            <button onClick={enterLottery}>enter</button>
-          </>
-        }
+  const renderer = ({ hours, minutes, seconds }) => {
+    return <div className='flex items-center'>
+      <div className='flex flex-col'>
+        <p className='text-6xl'>{hours.toString().length === 1 ? `0${hours}` : hours}</p>
+        <p className='text-slate-500 text-center text-sm'>Hours</p>
       </div>
-      <div className='flex justify-between'>
-        <div className='flex'>
-          <div>Eth Price: {price}</div>
-          <a href={`https://rinkeby.etherscan.io/address/${addressOfContract}`} target={'_blank'} className='underline text-slate-200 text-sm ml-4'>Contract</a>
-        </div>
-        <a href='https://github.com/pakiZBRG/Lottery' target={'_blank'} className='text-slate-100 text-xl'>
-          <BsCodeSlash />
-        </a>
+      <span className='text-3xl font-black mb-4 mx-1'>:</span>
+      <div className='flex flex-col items-center'>
+        <p className='text-6xl'>{minutes.toString().length === 1 ? `0${minutes}` : minutes}</p>
+        <p className='text-slate-500 text-center text-sm'>Minutes</p>
+      </div>
+      <span className='text-3xl font-black mb-4 mx-1'>:</span>
+      <div className='flex flex-col items-center'>
+        <p className='text-6xl'>{seconds.toString().length === 1 ? `0${seconds}` : seconds}</p>
+        <p className='text-slate-500 text-center text-sm'>Seconds</p>
       </div>
     </div>
+  };
+
+  return (
+    <>
+      <ToastContainer position='bottom-right' theme='dark' />
+      <div className='min-h-screen bg-black text-white flex flex-col justify-between'>
+        <Nav
+          connectWallet={connectWallet}
+          account={account}
+          metamaskMessage={metamaskMessage}
+        />
+        <div>
+          {chainMessage && <p>{chainMessage}</p>}
+          <div className='flex flex-col items-center mb-8'>
+            <div className='bg-red'>
+              <span className='text-8xl cunia'>{tickets}</span>
+              <span className='text-5xl ml-2'>🎫</span>
+            </div>
+            <div className='text-slate-500 mb-10 text-lg'>{balance}Ξ</div>
+            {startedAt && duration &&
+              <Countdown
+                date={startedAt + duration}
+                daysInHours={true}
+                onComplete={finishLottery}
+                renderer={renderer}
+              />
+            }
+            <div>
+              <p className='bg-white px-3 py-1 rounded-full text-black text-[.8rem] mt-4'>
+                {new Date(startedAt + duration).toString().substring(4, 21)}
+              </p>
+            </div>
+            {account.address &&
+              <div className='mt-20 flex flex-col items-center'>
+                <div className='flex flex-col'>
+                  <span className='text-xs text-slate-400'># of tickets</span>
+                  <input
+                    type='number'
+                    className='bg-slate-800 rounded text-6xl border-none w-[7.75rem] focus:outline-none focus:ring focus:ring-slate-600 p-2 text-center mb-1 cunia'
+                    min={1}
+                    max={10}
+                    value={numTickets}
+                    onChange={e => setNumTickets(e.target.value)}
+                  />
+                  <div className='mb-4 text-sm text-slate-300'>
+                    <span>🎫 = {ticketPrice}Ξ</span>
+                  </div>
+                </div>
+                <button
+                  className={`${loading || pickingWinner ? 'bg-rose-500' : 'bg-rose-700'} text-md p-2 rounded-full hover:shadow-rose-500/30 duration-300 shadow-xl w-48`}
+                  onClick={enterLottery}
+                  disabled={loading || pickingWinner}
+                >
+                  {!loading ? pickingWinner ? 'Picking winner...' : 'Enter' : <Loader />}
+                </button>
+              </div>
+            }
+            <div className='mt-12'>
+              {winner.address &&
+                <>
+                  <p className='text-slate-500'>Latest winner:</p>
+                  <div className='flex items-center bg-gray-900 py-2 px-6 rounded-xl'>
+                    <div>{winner.address}</div>
+                    <div className='bg-gray-800 p-2 ml-4 px-3 rounded-xl'>{winner.reward}</div>
+                  </div>
+                </>
+              }
+            </div>
+            {/* <div>Funders: {funders?.map((funder, i) => <p key={i}>{funder}</p>)}</div> */}
+          </div>
+        </div>
+        <footer className='p-4 flex flex-row justify-between'>
+          <div className='flex flex-row  items-center'>
+            <a
+              className='bg-gray-800 text-sm w-28 text-slate-300 px-4 py-2 rounded-full flex items-center'
+              href='https://www.coingecko.com/en/coins/ethereum'
+              target={'_blank'}
+            >
+              <FaEthereum className='text-lg mr-1 text-slate-400' />{price}
+            </a>
+            <a href={`https://rinkeby.etherscan.io/address/${addressOfContract}`} target={'_blank'} className='underline text-slate-200 text-sm ml-4'>Contract</a>
+          </div>
+          <div className='flex flex-row items-center'>
+            <a href='https://github.com/pakiZBRG/Lottery' target={'_blank'} className='text-slate-100 text-xl'>
+              <BsCodeSlash />
+            </a>
+          </div>
+        </footer>
+      </div>
+    </>
   )
 }
 
