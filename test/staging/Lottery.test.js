@@ -6,12 +6,13 @@ developmentChains.includes(network.name)
     ? describe.skip
     : describe("Lottery", () => {
         const parseWei = (n) => ethers.utils.parseUnits(`${+ticketPrice * n}`, 'wei')
-        let lottery, ticketPrice, deployer;
+        let lottery, ticketPrice, deployer, draftNum;
 
         beforeEach(async () => {
             deployer = (await getNamedAccounts()).deployer;
             lottery = await ethers.getContract("Lottery", deployer)
             ticketPrice = await lottery.getTicketPrice();
+            draftNum = (await lottery.getDraftNum()).toString()
         })
 
         describe("randomWords", () => {
@@ -19,21 +20,23 @@ developmentChains.includes(network.name)
                 const startingTimeStamp = await lottery.getTimeStamp();
                 const accounts = await ethers.getSigners();
 
-                console.log('Setting up Listener...');
+                console.log('Entering Lottery...');
                 await new Promise(async (resolve, reject) => {
-                    console.log("Entering lottery");
                     await lottery.enterLottery(6, { value: parseWei(6) })
+                    console.log("Lottery Entered");
                     const winnerStartingBalance = await accounts[0].getBalance();
-                    const tickets = await lottery.getTicketAmount();
 
                     lottery.once("WinnerPicked", async () => {
-                        console.log("WinnerPicked event fired...")
+                        console.log("Time is up. Picking winner...")
                         try {
+                            const tickets = (await lottery.getTicketAmount()).toString()
                             const winner = await lottery.getWinner();
                             const endingTimeStamp = await lottery.getTimeStamp();
                             const players = await lottery.getPlayers();
                             const winnerEndingBalance = await accounts[0].getBalance();
+                            const draft = (await lottery.getDraftNum()).toString()
 
+                            assert.equal(+draft, +draftNum + 1)
                             assert.equal(winner.toString(), accounts[0].address)
                             assert.equal(players.length, 0)
                             assert.equal(

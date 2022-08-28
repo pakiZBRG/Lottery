@@ -1,6 +1,6 @@
 ## Create .env file
-- `PRIVATE_KEY`
-- `RINKEBY_RPC_URL`
+- `PRIVATE_KEY` - private key of one of your Metamask account
+- `GOERLI_RPC_URL` - 
 - `ETHERSCAN_API_KEY`
 - `COINMARKETCAP_API_KEY`
 
@@ -19,8 +19,8 @@
 `hh deploy`
 - Spin up your local blockchain to test locally
 `hh node`
-- Deploy contract to a **Rinkeby (only)** testnet
-`hh deploy --network rinkeby`
+- Deploy contract to a **Goerli (only)** testnet
+`hh deploy --network goerli`
 
 ##  Frontend (Vite + React + TailwindCSS)
 - Start

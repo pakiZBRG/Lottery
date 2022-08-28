@@ -15,6 +15,11 @@ error Lottery__MaxTicketBound();
 error Lottery__NoTickets();
 
 contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
+    enum LotteryState {
+        OPEN,
+        PICKING_WINNER
+    }
+
     // VRF
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
     bytes32 private immutable i_gasLane;
@@ -24,8 +29,8 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
     uint32 private constant NUM_WORDS = 2;
 
     // Keepers
-    uint256 private s_lastTimeStamp;
-    uint256 private immutable i_interval;
+    // uint256 private s_lastTimeStamp;
+    // uint256 private immutable i_interval;
 
     // Price Feed
     AggregatorV3Interface private immutable i_priceFeed;
@@ -37,6 +42,8 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
     uint256 private constant TICKET_PRICE = 0.002 ether;
     address private s_winner;
     uint256 private s_reward;
+    uint256 private s_draftNum;
+    LotteryState private s_lotteryState;
 
     event Lottery__Enter(address indexed player);
     event RequestWinner(uint256 indexed requestId);
@@ -47,7 +54,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         bytes32 gasLane,
         uint64 subscriptionId,
         uint32 callbackGasLimit,
-        uint256 interval,
+        // uint256 interval,
         address priceFeedAddress,
         uint256 duration
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
@@ -55,10 +62,12 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
-        s_lastTimeStamp = block.timestamp;
-        i_interval = interval;
+        // s_lastTimeStamp = block.timestamp;
+        // i_interval = interval;
         i_priceFeed = AggregatorV3Interface(priceFeedAddress);
         s_duration = duration;
+        s_lotteryState = LotteryState.OPEN;
+        s_draftNum = 1;
     }
 
     receive() external payable {
@@ -70,12 +79,12 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
     }
 
     function enterLottery(uint256 amount) public payable {
-        if (s_players.length == 0) s_startedAt = block.timestamp;
-        if (block.timestamp > s_startedAt + s_duration)
-            revert Lottery__NotOpen();
         if (msg.value < amount * TICKET_PRICE) revert Lottery__NotEnoughETH();
         if (amount < 1) revert Lottery__NoTickets();
         if (amount > 10) revert Lottery__MaxTicketBound();
+        if (s_players.length == 0) s_startedAt = block.timestamp;
+        if (block.timestamp > s_startedAt + s_duration)
+            revert Lottery__NotOpen();
         for (uint256 i = 0; i < amount; ) {
             s_players.push(payable(msg.sender));
             unchecked {
@@ -97,11 +106,12 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
             bytes memory /* performData */
         )
     {
-        bool countdown = block.timestamp > s_startedAt + s_duration;
         bool hasPlayers = s_players.length > 0;
         bool hasBalance = address(this).balance > 0;
-        bool timePassed = (block.timestamp - s_lastTimeStamp) > i_interval;
-        upkeepNeeded = hasPlayers && hasBalance && timePassed && countdown;
+        bool timePassed = block.timestamp > s_startedAt + s_duration;
+        // bool timePassed = (block.timestamp - s_lastTimeStamp) > i_interval;
+        // upkeepNeeded = hasPlayers && hasBalance && timePassed && countdown;
+        upkeepNeeded = hasPlayers && hasBalance && timePassed;
         return (upkeepNeeded, "0x");
     }
 
@@ -111,6 +121,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         (bool upkeepNeeded, ) = checkUpkeep("");
         if (!upkeepNeeded) revert Lottery__UpkeepNotNeeded();
 
+        s_lotteryState = LotteryState.PICKING_WINNER;
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_gasLane,
             i_subscriptionId,
@@ -130,8 +141,10 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         s_winner = winner;
         s_reward = address(this).balance;
         s_players = new address payable[](0);
-        s_lastTimeStamp = block.timestamp;
+        // s_lastTimeStamp = block.timestamp;
         s_ticketAmount = 0;
+        s_lotteryState = LotteryState.OPEN;
+        s_draftNum = s_draftNum + 1;
 
         (bool success, ) = winner.call{value: address(this).balance}("");
         if (!success) revert Lottery__TransferFailed();
@@ -161,9 +174,9 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         return amountInEth;
     }
 
-    function getTimeStamp() public view returns (uint256) {
-        return s_lastTimeStamp;
-    }
+    // function getTimeStamp() public view returns (uint256) {
+    //     return s_lastTimeStamp;
+    // }
 
     function getWinner() public view returns (address) {
         return s_winner;
@@ -177,9 +190,9 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         return s_players;
     }
 
-    function getInterval() public view returns (uint256) {
-        return i_interval;
-    }
+    // function getInterval() public view returns (uint256) {
+    //     return i_interval;
+    // }
 
     function getDuration() public view returns (uint256) {
         return s_duration;
@@ -187,5 +200,13 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
 
     function getStartingTime() public view returns (uint256) {
         return s_startedAt;
+    }
+
+    function getDraftNum() public view returns (uint256) {
+        return s_draftNum;
+    }
+
+    function getLotteryState() public view returns (LotteryState) {
+        return s_lotteryState;
     }
 }

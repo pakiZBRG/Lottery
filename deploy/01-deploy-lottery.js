@@ -34,14 +34,14 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
   const gasLane = networkConfig[chainId]["gasLane"];
   const callbackGasLimit = networkConfig[chainId]["callbackGasLimit"];
-  const interval = networkConfig[chainId]["interval"];
+  // const interval = networkConfig[chainId]["interval"];
   const time = networkConfig[chainId]["time"]
   const args = [
     vrfCoordinatorV2Address,
     gasLane,
     subscriptionId,
     callbackGasLimit,
-    interval,
+    // interval,
     ethUsdPriceFeedAddress,
     time
   ]

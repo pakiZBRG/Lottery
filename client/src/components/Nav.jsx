@@ -11,16 +11,16 @@ const Nav = ({ account, metamaskMessage, connectWallet }) => {
             </div>
             {address
                 ?
-                <p className='text-sm mr-5 text-slate-200 border-[1px] border-slate-500 px-5 py-2 rounded-full'>
+                <p className='text-sm black-glassmorphism mr-5 text-slate-100 border-none px-5 py-2 rounded-full'>
                     {shortenAddress(address)}
-                    <span className='mx-2 border'></span>
+                    <span className='mx-3 border'></span>
                     <span>{balance}</span>
                 </p>
                 :
                 <>
                     {!metamaskMessage
                         ? <button
-                            className='h-9 px-6 mr-6 text-slate-200 rounded-full border-slate-200 border-[1px] hover:text-slate-900 hover:bg-white hover:shadow-slate-500/40 duration-300 shadow-xl'
+                            className='h-9 px-6 mr-6 text-slate-200 rounded-full black-glassmorphism hover:shadow-zinc-700/30 duration-300 shadow-xl'
                             onClick={connectWallet}
                         >
                             <span className='flex items-center'><FaWallet className='mr-3' /> Connect</span>

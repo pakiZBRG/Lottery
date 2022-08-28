@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Nav, Loader } from './components'
 import { ethers } from 'ethers';
-import { abi, contractAddress } from './contract';
+import { abi, contractAddress, vrf } from './contract';
 import { BsCodeSlash } from 'react-icons/bs'
 import { FaEthereum } from 'react-icons/fa'
 import { formatBigNumber } from './utils';
@@ -13,6 +13,7 @@ const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
 
 const App = () => {
+  const [draftNum, setDraftNum] = useState('');
   const [pickingWinner, setPickingWinner] = useState(false);
   const [loading, setLoading] = useState(false)
   const [numTickets, setNumTickets] = useState(1)
@@ -20,11 +21,10 @@ const App = () => {
   const [addressOfContract, setAddressOfContract] = useState('');
   const [price, setPrice] = useState(0);
   const [ticketPrice, getTicketPrice] = useState(0);
-  const [winner, setWinner] = useState({ address: '', reward: '' });
+  const [winner, setWinner] = useState({ address: '0x0000000000000000000000000000000000000000', reward: '0.000' });
   const [startedAt, setStartedAt] = useState(0);
   const [duration, setDuration] = useState(0)
   const [balance, setBalance] = useState(0);
-  const [funders, setFunders] = useState([])
   const [chainMessage, setChainMessage] = useState('')
   const [account, setAccount] = useState({ address: '', balance: '' });
   const [metamaskMessage, setMetamaskMessage] = useState(false);
@@ -48,6 +48,22 @@ const App = () => {
     return address;
   }
 
+  const getCurrentNetwork = async () => {
+    const network = await provider.getNetwork();
+    if (contractAddress[+network.chainId]) {
+      setChainMessage("")
+    } else {
+      setChainMessage("Please use Goerli network")
+      if (!contractAddress[+network.chainId]) {
+        await ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x5' }]
+        });
+      }
+      window.location.reload()
+    }
+  }
+
   useEffect(() => {
     if (typeof ethereum !== 'undefined') {
       ethereum.on('accountsChanged', async accounts => {
@@ -61,12 +77,15 @@ const App = () => {
         if (contractAddress[+chainId]) {
           setChainMessage("")
         } else {
-          setChainMessage("Please use Rinkeby")
+          setChainMessage("Please use Goerli network")
         }
       });
 
+      getCurrentNetwork();
+
+      getStatus();
+      getDraftNum();
       getBalance();
-      getFunders();
       getTime();
       getPrice();
       getWinner();
@@ -75,16 +94,6 @@ const App = () => {
       isConnected()
         .then(async () => {
           await connectWallet()
-          provider.getNetwork()
-            .then(async ({ chainId }) => {
-              if (!contractAddress[chainId]) {
-                await ethereum.request({
-                  method: 'wallet_switchEthereumChain',
-                  params: [{ chainId: '0x4' }]
-                });
-              }
-            })
-            .catch(err => console.log(err.message))
         })
         .catch(err => console.log(err.message))
     } else {
@@ -104,12 +113,21 @@ const App = () => {
     }
   }
 
-  const getFunders = async () => {
+  const getDraftNum = async () => {
     try {
       const contract = await getContract(provider);
-      const funders = await contract.getPlayers();
-      const uniqueFunders = [...new Set(funders)]
-      setFunders(uniqueFunders)
+      const draft = await contract.getDraftNum();
+      setDraftNum(draft.toString());
+    } catch (error) {
+      console.log(error.message)
+    }
+  }
+
+  const getStatus = async () => {
+    try {
+      const contract = await getContract(provider);
+      const data = await contract.getLotteryState();
+      setPickingWinner(data === 1 || (balance > 0 && Date.now() > startedAt) ? true : false)
     } catch (error) {
       console.log(error.message)
     }
@@ -169,7 +187,6 @@ const App = () => {
 
       getBalance();
       getTicketAmount();
-      getFunders();
       getTime();
       setNumTickets(1);
       toast.success("Transaction completed")
@@ -177,6 +194,12 @@ const App = () => {
       setLoading(false)
       if (error.message.includes("Lottery__NotEnoughETH")) {
         toast.error("Not enough ETH sent!")
+      }
+      if (error.message.includes("INSUFFICIENT_FUNDS")) {
+        toast.error("Insufficient amount of ETH in wallet.")
+      }
+      if (error.message.includes("User denied transaction signature.")) {
+        toast.info("Transaction cancelled.")
       }
       console.log(error.message);
     }
@@ -194,7 +217,7 @@ const App = () => {
           const txReceipt = await tx.wait(1)
           const requestId = txReceipt.events[1].args.requestId;
 
-          const vrfCoordinatorV2Mock = new ethers.Contract(contractAddress.vrf, mocks, signer)
+          const vrfCoordinatorV2Mock = await ethers.Contract(contractAddress["vrf"], vrf, provider)
           await vrfCoordinatorV2Mock.fulfillRandomWords(requestId, contract.address)
           const winner = await contract.getWinner()
           const reward = await contract.getReward();
@@ -202,17 +225,17 @@ const App = () => {
           console.log(`The winner is: ${winner} ${ethReward}Ξ`);
         }
       } else {
+        getStatus();
         await new Promise(async (resolve, reject) => {
-          setPickingWinner(true)
           contract.once("WinnerPicked", async () => {
             try {
               getWinner();
               setBalance(0);
               getTicketAmount();
-              setFunders([]);
               setNumTickets(1);
               setPickingWinner(false)
               connectWallet();
+              getDraftNum();
               resolve();
             } catch (e) {
               reject(e);
@@ -252,17 +275,17 @@ const App = () => {
     return <div className='flex items-center'>
       <div className='flex flex-col'>
         <p className='text-6xl'>{hours.toString().length === 1 ? `0${hours}` : hours}</p>
-        <p className='text-slate-500 text-center text-sm'>Hours</p>
+        <p className='text-slate-400 text-center text-sm'>Hours</p>
       </div>
       <span className='text-3xl font-black mb-4 mx-1'>:</span>
       <div className='flex flex-col items-center'>
         <p className='text-6xl'>{minutes.toString().length === 1 ? `0${minutes}` : minutes}</p>
-        <p className='text-slate-500 text-center text-sm'>Minutes</p>
+        <p className='text-slate-400 text-center text-sm'>Minutes</p>
       </div>
       <span className='text-3xl font-black mb-4 mx-1'>:</span>
       <div className='flex flex-col items-center'>
         <p className='text-6xl'>{seconds.toString().length === 1 ? `0${seconds}` : seconds}</p>
-        <p className='text-slate-500 text-center text-sm'>Seconds</p>
+        <p className='text-slate-400 text-center text-sm'>Seconds</p>
       </div>
     </div>
   };
@@ -270,82 +293,85 @@ const App = () => {
   return (
     <>
       <ToastContainer position='bottom-right' theme='dark' />
-      <div className='min-h-screen bg-black text-white flex flex-col justify-between'>
+      <div className='min-h-screen gradient-background text-white flex flex-col justify-between'>
         <Nav
           connectWallet={connectWallet}
           account={account}
           metamaskMessage={metamaskMessage}
         />
-        <div>
-          {chainMessage && <p>{chainMessage}</p>}
-          <div className='flex flex-col items-center mb-8'>
-            <div className='bg-red'>
-              <span className='text-8xl cunia'>{tickets}</span>
-              <span className='text-5xl ml-2'>🎫</span>
-            </div>
-            <div className='text-slate-500 mb-10 text-lg'>{balance}Ξ</div>
-            {startedAt && duration &&
-              <Countdown
-                date={startedAt + duration}
-                daysInHours={true}
-                onComplete={finishLottery}
-                renderer={renderer}
-              />
-            }
-            <div>
-              <p className='bg-white px-3 py-1 rounded-full text-black text-[.8rem] mt-4'>
-                {new Date(startedAt + duration).toString().substring(4, 21)}
-              </p>
-            </div>
-            {account.address &&
-              <div className='mt-20 flex flex-col items-center'>
-                <div className='flex flex-col'>
-                  <span className='text-xs text-slate-400'># of tickets</span>
-                  <input
-                    type='number'
-                    className='bg-slate-800 rounded text-6xl border-none w-[7.75rem] focus:outline-none focus:ring focus:ring-slate-600 p-2 text-center mb-1 cunia'
-                    min={1}
-                    max={10}
-                    value={numTickets}
-                    onChange={e => setNumTickets(e.target.value)}
-                  />
-                  <div className='mb-4 text-sm text-slate-300'>
-                    <span>🎫 = {ticketPrice}Ξ</span>
-                  </div>
+        {chainMessage ?
+          <p className='text-center mt-16 text-3xl'>{chainMessage}</p>
+          :
+          <div>
+            <div className='flex flex-col items-center mb-8'>
+              <div className='flex flex-col items-center black-glassmorphism py-10 md:w-2/5 w-80'>
+                <p className='text-slate-300'>Draft #{draftNum}</p>
+                <div className='bg-red'>
+                  <span className='text-8xl cunia'>{tickets}</span>
+                  <span className='text-5xl ml-2'>🎫</span>
                 </div>
-                <button
-                  className={`${loading || pickingWinner ? 'bg-rose-500' : 'bg-rose-700'} text-md p-2 rounded-full hover:shadow-rose-500/30 duration-300 shadow-xl w-48`}
-                  onClick={enterLottery}
-                  disabled={loading || pickingWinner}
-                >
-                  {!loading ? pickingWinner ? 'Picking winner...' : 'Enter' : <Loader />}
-                </button>
+                <div className='text-slate-400 mb-10 text-lg'>{balance}Ξ</div>
+                {startedAt && duration ?
+                  <Countdown
+                    date={startedAt + duration}
+                    daysInHours={true}
+                    onComplete={finishLottery}
+                    renderer={renderer}
+                  />
+                  :
+                  renderer({ hours: 0, minutes: 0, seconds: 0 })
+                }
+                <p className='bg-white px-3 py-1 rounded-full text-black text-[.8rem] mt-4'>
+                  {new Date(startedAt + duration).toString().substring(4, 21)}
+                </p>
               </div>
-            }
-            <div className='mt-12'>
-              {winner.address &&
-                <>
-                  <p className='text-slate-500'>Latest winner:</p>
-                  <div className='flex items-center bg-gray-900 py-2 px-6 rounded-xl'>
-                    <div>{winner.address}</div>
-                    <div className='bg-gray-800 p-2 ml-4 px-3 rounded-xl'>{winner.reward}</div>
+              {account.address ?
+                <div className='mt-12 flex flex-col items-center'>
+                  <div className='flex flex-col'>
+                    <span className='text-xs text-slate-100'># of tickets</span>
+                    <input
+                      type='number'
+                      className='blacker-glassmorphism rounded text-6xl border-none w-[7.75rem] outline-none p-2 text-center mb-1 cunia'
+                      min={1}
+                      max={10}
+                      value={numTickets}
+                      onChange={e => setNumTickets(e.target.value)}
+                    />
+                    <div className='mb-4 text-sm text-slate-100'>
+                      <p className='-mt-2'><span className='text-lg'>🎫</span> = {ticketPrice}Ξ</p>
+                    </div>
                   </div>
-                </>
+                  <button
+                    className={`${loading ? 'bg-rose-500' : 'bg-rose-700'} text-md p-2 rounded-full hover:shadow-rose-500/30 duration-300 shadow-xl w-48`}
+                    onClick={enterLottery}
+                    disabled={loading || pickingWinner}
+                  >
+                    {!loading ? pickingWinner ? <p className='animate-pulse'>Picking winner...</p> : 'Enter' : <Loader />}
+                  </button>
+                </div>
+                :
+                <p className='mt-16 text-xl'>Connect your Metamask Wallet</p>
               }
+              <div className='mt-12'>
+                <p className='text-slate-200'>Latest winner:</p>
+                <div className='flex items-center black-glassmorphism py-2 px-6 rounded-xl'>
+                  <div>{winner.address}</div>
+                  <div className='blacker-glassmorphism p-2 ml-4 px-3 rounded-xl'>{winner.reward}</div>
+                </div>
+              </div>
             </div>
-            {/* <div>Funders: {funders?.map((funder, i) => <p key={i}>{funder}</p>)}</div> */}
           </div>
-        </div>
+        }
         <footer className='p-4 flex flex-row justify-between'>
           <div className='flex flex-row  items-center'>
             <a
-              className='bg-gray-800 text-sm w-28 text-slate-300 px-4 py-2 rounded-full flex items-center'
+              className='white-glassmorphism text-sm text-slate-100 px-4 py-2 rounded-full flex items-center'
               href='https://www.coingecko.com/en/coins/ethereum'
               target={'_blank'}
             >
-              <FaEthereum className='text-lg mr-1 text-slate-400' />{price}
+              <FaEthereum className='text-lg mr-2 text-slate-300' />{price}
             </a>
-            <a href={`https://rinkeby.etherscan.io/address/${addressOfContract}`} target={'_blank'} className='underline text-slate-200 text-sm ml-4'>Contract</a>
+            <a href={`https://goerli.etherscan.io/address/${addressOfContract}`} target={'_blank'} className='underline text-slate-100 text-sm ml-4'>Contract</a>
           </div>
           <div className='flex flex-row items-center'>
             <a href='https://github.com/pakiZBRG/Lottery' target={'_blank'} className='text-slate-100 text-xl'>
