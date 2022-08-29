@@ -28,10 +28,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
     uint32 private constant NUM_WORDS = 2;
 
-    // Keepers
-    // uint256 private s_lastTimeStamp;
-    // uint256 private immutable i_interval;
-
     // Price Feed
     AggregatorV3Interface private immutable i_priceFeed;
 
@@ -54,7 +50,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         bytes32 gasLane,
         uint64 subscriptionId,
         uint32 callbackGasLimit,
-        // uint256 interval,
         address priceFeedAddress,
         uint256 duration
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
@@ -62,8 +57,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
-        // s_lastTimeStamp = block.timestamp;
-        // i_interval = interval;
         i_priceFeed = AggregatorV3Interface(priceFeedAddress);
         s_duration = duration;
         s_lotteryState = LotteryState.OPEN;
@@ -109,8 +102,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         bool hasPlayers = s_players.length > 0;
         bool hasBalance = address(this).balance > 0;
         bool timePassed = block.timestamp > s_startedAt + s_duration;
-        // bool timePassed = (block.timestamp - s_lastTimeStamp) > i_interval;
-        // upkeepNeeded = hasPlayers && hasBalance && timePassed && countdown;
         upkeepNeeded = hasPlayers && hasBalance && timePassed;
         return (upkeepNeeded, "0x");
     }
@@ -141,7 +132,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         s_winner = winner;
         s_reward = address(this).balance;
         s_players = new address payable[](0);
-        // s_lastTimeStamp = block.timestamp;
         s_ticketAmount = 0;
         s_lotteryState = LotteryState.OPEN;
         s_draftNum = s_draftNum + 1;
@@ -174,10 +164,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
         return amountInEth;
     }
 
-    // function getTimeStamp() public view returns (uint256) {
-    //     return s_lastTimeStamp;
-    // }
-
     function getWinner() public view returns (address) {
         return s_winner;
     }
@@ -189,10 +175,6 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatible {
     function getPlayers() public view returns (address payable[] memory) {
         return s_players;
     }
-
-    // function getInterval() public view returns (uint256) {
-    //     return i_interval;
-    // }
 
     function getDuration() public view returns (uint256) {
         return s_duration;

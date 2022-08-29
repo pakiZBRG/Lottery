@@ -17,7 +17,6 @@ developmentChains.includes(network.name)
 
         describe("randomWords", () => {
             it("picks a winner on a testnet", async () => {
-                const startingTimeStamp = await lottery.getTimeStamp();
                 const accounts = await ethers.getSigners();
 
                 console.log('Entering Lottery...');
@@ -31,7 +30,6 @@ developmentChains.includes(network.name)
                         try {
                             const tickets = (await lottery.getTicketAmount()).toString()
                             const winner = await lottery.getWinner();
-                            const endingTimeStamp = await lottery.getTimeStamp();
                             const players = await lottery.getPlayers();
                             const winnerEndingBalance = await accounts[0].getBalance();
                             const draft = (await lottery.getDraftNum()).toString()
@@ -45,7 +43,6 @@ developmentChains.includes(network.name)
                                     ticketPrice.mul(tickets)
                                 ).toString()
                             );
-                            assert(endingTimeStamp > startingTimeStamp);
                             console.log('The winner is ', winner)
                             resolve();
                         } catch (e) {

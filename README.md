@@ -1,7 +1,7 @@
 ## Create .env file
 - `PRIVATE_KEY` - private key of one of your Metamask account
-- `GOERLI_RPC_URL` - 
-- `ETHERSCAN_API_KEY`
+- `GOERLI_RPC_URL` - Goerli RPC URL from Alchemy
+- `ETHERSCAN_API_KEY` - for contract verification
 - `COINMARKETCAP_API_KEY`
 
 ## Scripts

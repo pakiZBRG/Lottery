@@ -6,15 +6,13 @@ const networkConfig = {
       "0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15",
     subscriptionId: "713", // vrf.chain.link
     callbackGasLimit: "200000",
-    // interval: 120,
     ethUsdPriceFeed: '0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e',
-    time: 200
+    time: 86400
   },
   31337: {
     name: "localhost",
     gasLane: "0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15",
     callbackGasLimit: "200000",
-    // interval: 120,
     time: 200
   },
 };
