@@ -6,8 +6,11 @@ import { formatBigNumber } from './utils';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const provider = new ethers.providers.Web3Provider(window.ethereum);
-const signer = provider.getSigner();
+let provider, signer
+if (window.ethereum) {
+  provider = new ethers.providers.Web3Provider(window.ethereum);
+  signer = provider.getSigner()
+}
 
 const App = () => {
   const [draftNum, setDraftNum] = useState('');
@@ -79,7 +82,6 @@ const App = () => {
       });
 
       getCurrentNetwork();
-
       getDraftNum();
       getBalance();
       getTime();
@@ -88,9 +90,7 @@ const App = () => {
       getEntranceFee();
       getTicketAmount();
       isConnected()
-        .then(async () => {
-          await connectWallet()
-        })
+        .then(async () => await connectWallet())
         .catch(err => console.log(err.message))
     } else {
       setMetamaskMessage(true)
